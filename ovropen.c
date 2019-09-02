@@ -49,7 +49,7 @@ static void set_page_ro(unsigned long address){
 
 static inline int user_strlen(const char *path){
   char character = '\0';
-  int length = 0;
+  int length = 1;
   do{
     get_user(character, path + length);
     length++;
